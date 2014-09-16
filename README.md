@@ -1,4 +1,4 @@
-Treelib: Decision Trees, Random Forests, Resampling methods and Pruning algorithms for Apache SPARK
+Treelib: Decision Trees for Apache SPARK
 =======
 
 This repository focus on a possible implementation of decision trees, random forests and a series of "utilities" for Apache SPARK.
