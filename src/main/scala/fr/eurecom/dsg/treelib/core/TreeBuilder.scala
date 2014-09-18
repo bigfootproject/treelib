@@ -339,84 +339,85 @@ abstract class TreeBuilder extends Serializable {
             throw new Exception("ERROR:Dataset is invalid or invalid feature names")
         }
 
-        try {
+      try
 
-            treeModel.tree = null
-            // These information will be used in Pruning phase
-            treeModel.xFeatures = xFeatures
-            treeModel.yFeature = yFeature
+        treeModel.tree = null
+        // These information will be used in Pruning phase
+        treeModel.xFeatures = xFeatures
+        treeModel.yFeature = yFeature
 
-            var (xIndexes, yIndex) = this.getXIndexesAndYIndexByNames(xFeatures, yFeature)
-            println("current yIndex=" + yIndex + " xIndex:" + xIndexes.toString)
+        var (xIndexes, yIndex) = this.getXIndexesAndYIndexByNames(xFeatures, yFeature)
+        println("current yIndex=" + yIndex + " xIndex:" + xIndexes.toString)
 
-            // SET UP LIST OF USEFUL FEATURES AND ITS INDEXES //
-            var usefulFeatureList = List[Feature]()
-            var i = -1
-            var usefulIndexes = List[Int]()
-            var newYIndex = 0
-            fullFeatureSet.data.foreach(feature => {
-                if (xIndexes.contains(feature.index) || feature.index == yIndex) {
-                    i = i + 1
-                    if (feature.index == yIndex) {
-                        newYIndex = i
-                        println("new yindex:" + newYIndex)
-                    }
-                    usefulIndexes = usefulIndexes.:+(i)
-                    usefulFeatureList = usefulFeatureList.:+(Feature(feature.Name, feature.Type, i))
-                }
-            })
-
-            //this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
-            /*
-            // FILTER OUT THE UNUSED FEATURES //
-            this.trainingData = filterUnusedFeatures(this.trainingData, xIndexes, yIndex)
-
-            // because we remove unused features, so the indices are changed
-            var newXIndexes = usefulIndexes.filter(x => x != newYIndex)
-
-            this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
-
-            this.yIndex = newYIndex
-            this.xIndexes = newXIndexes.toSet
-
-            treeModel.yIndex = newYIndex
-            treeModel.xIndexes = this.xIndexes
-            treeModel.usefulFeatureSet = this.usefulFeatureSet
-            treeModel.fullFeatureSet = this.fullFeatureSet
-            println("build tree with feature set:" + this.usefulFeatureSet + "\n xIndexes:" + this.xIndexes + "\nYIndex:" + this.yIndex)
-            treeModel.treeBuilder = this
-            // build tree
-            if (this.useCache)
-                this.startBuildTree(this.trainingData.cache, newXIndexes.toSet, newYIndex)
-            else
-                this.startBuildTree(this.trainingData, newXIndexes.toSet, newYIndex)
-            */
-            
-            this.yIndex = yIndex
-            this.xIndexes = xIndexes
-            treeModel.xIndexes = xIndexes
-            treeModel.yIndex = yIndex
-            treeModel.fullFeatureSet = this.fullFeatureSet
-            treeModel.treeBuilder = this
-            this.numberOfUsefulFeatures = this.xIndexes.size + 1
-            
-            println("xIndexes:" + xIndexes + " yIndex:" + yIndex)
-            
-            println("Building tree with predictors:" + this.xIndexes.map(i => fullFeatureSet.data(i).Name))
-            println("Target feature:" + fullFeatureSet.data(yIndex).Name)
-            
-            //this.startBuildTree(this.trainingData, xIndexes, yIndex)  
-            
-            if (this.useCache)
-                this.startBuildTree(this.trainingData.cache, xIndexes, yIndex)
-            else
-                this.startBuildTree(this.trainingData, xIndexes, yIndex)
-            
-        } catch {
-            case e: Throwable => {
-            	println("Error:" + e.getStackTraceString)
+        // SET UP LIST OF USEFUL FEATURES AND ITS INDEXES //
+        var usefulFeatureList = List[Feature]()
+        var i = -1
+        var usefulIndexes = List[Int]()
+        var newYIndex = 0
+        fullFeatureSet.data.foreach(feature => {
+          if (xIndexes.contains(feature.index) || feature.index == yIndex) {
+            i = i + 1
+            if (feature.index == yIndex) {
+              newYIndex = i
+              println("new yindex:" + newYIndex)
             }
+            usefulIndexes = usefulIndexes.:+(i)
+            usefulFeatureList = usefulFeatureList.:+(Feature(feature.Name, feature.Type, i))
+          }
+        })
+
+        //this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
+        /*
+        // FILTER OUT THE UNUSED FEATURES //
+        this.trainingData = filterUnusedFeatures(this.trainingData, xIndexes, yIndex)
+
+        // because we remove unused features, so the indices are changed
+        var newXIndexes = usefulIndexes.filter(x => x != newYIndex)
+
+        this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
+
+        this.yIndex = newYIndex
+        this.xIndexes = newXIndexes.toSet
+
+        treeModel.yIndex = newYIndex
+        treeModel.xIndexes = this.xIndexes
+        treeModel.usefulFeatureSet = this.usefulFeatureSet
+        treeModel.fullFeatureSet = this.fullFeatureSet
+        println("build tree with feature set:" + this.usefulFeatureSet + "\n xIndexes:" + this.xIndexes + "\nYIndex:" + this.yIndex)
+        treeModel.treeBuilder = this
+        // build tree
+        if (this.useCache)
+            this.startBuildTree(this.trainingData.cache, newXIndexes.toSet, newYIndex)
+        else
+            this.startBuildTree(this.trainingData, newXIndexes.toSet, newYIndex)
+        */
+
+        this.yIndex = yIndex
+        this.xIndexes = xIndexes
+        treeModel.xIndexes = xIndexes
+        treeModel.yIndex = yIndex
+        treeModel.fullFeatureSet = this.fullFeatureSet
+        treeModel.treeBuilder = this
+        this.numberOfUsefulFeatures = this.xIndexes.size + 1
+
+        println("xIndexes:" + xIndexes + " yIndex:" + yIndex)
+
+        println("Building tree with predictors:" + this.xIndexes.map(i => fullFeatureSet.data(i).Name))
+        println("Target feature:" + fullFeatureSet.data(yIndex).Name)
+
+        //this.startBuildTree(this.trainingData, xIndexes, yIndex)
+
+        // TODO: the use of cache here is "wrong", should cache RDD only when useful. See also the unpersist method.
+        if (this.useCache)
+          this.startBuildTree(this.trainingData.cache, xIndexes, yIndex)
+        else
+          this.startBuildTree(this.trainingData, xIndexes, yIndex)
+
+      catch {
+        case e: Throwable => {
+          println("Error:" + e.getStackTraceString)
         }
+      }
         this.trainingData.unpersist(true)
         this.treeModel
     }

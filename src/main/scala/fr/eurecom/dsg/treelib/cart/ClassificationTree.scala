@@ -19,16 +19,17 @@ class ClassificationTree extends TreeBuilder {
   /**
    * The collection of current existing nodes and the corresponding condition to go to each node
    */
-  var regions = List[(BigInt, List[Condition])]()
+   var regions = List[(BigInt, List[Condition])]()
   /**
    * The number of feature will be choose in Random Feature Selection
    */
-  private var numberOfRandomFeature: Int = 0
+   private var numberOfRandomFeature: Int = 0
 
   /** *******************************************************************/
   override def startBuildTree(trainingData: RDD[String],
-                              xIndexes: Set[Int],
-                              yIndex: Int): Unit = {
+    xIndexes: Set[Int],
+    yIndex: Int): Unit =
+  {
 
     var rootID = 1
 
@@ -50,7 +51,7 @@ class ClassificationTree extends TreeBuilder {
     var transformedData = mydata.map(
       arrayValues => {
         convertArrayValuesToObjects(arrayValues)
-      })
+        })
 
     // filter the 'line' which contains the invalid or missing data
     transformedData = transformedData.filter(x => (x.length > 0))
@@ -81,31 +82,32 @@ class ClassificationTree extends TreeBuilder {
 
         println("\n\n\nITERATION---------------------%d------------- expands from %d node\n\n".format(iter, expandingNodeIndexes.count(p => true)))
 
-
+        // TODO: I would like this to be optional.
         // save current model before growing tree
         this.treeModel.writeToFile(this.temporaryModelFile)
 
+        // TODO: Check all these var, they should be val
         var data = transformedData.flatMap(x => x.toSeq).filter(x => (x.index >= 0 && x.label > 0))
         //transformedData.foreach(x => println(x.mkString(" || ")))
 
         var featureValueAggregate = data.map(x => {
           ((x.label, x.index, x.xValue, x.yValue), (x.frequency))
-        }).reduceByKey(_ + _)
+          }).reduceByKey(_ + _)
 
         val YValueFrequenciesOfEachXValue = featureValueAggregate.map {
           case ((label, index, xValue, yValue), (frequency)) => ((label, index, xValue), (yValue, frequency))
-        }.groupByKey
+          }.groupByKey
 
-        var distributionOfEachFeature = YValueFrequenciesOfEachXValue.map {
-          case ((label, index, xValue), seqYValueFrequency) => ((label, index), (xValue, seqYValueFrequency))
-        }.groupByKey
+          var distributionOfEachFeature = YValueFrequenciesOfEachXValue.map {
+            case ((label, index, xValue), seqYValueFrequency) => ((label, index), (xValue, seqYValueFrequency))
+            }.groupByKey
         /*
         var frequencyOfEachPair = featureValueAggregate.map {
             case ((label, index, xValue, yValue), frequency) => {
                 ((label, index),(xValue, yValue, frequency))
             }
         }.groupByKey
-*/
+        */
 
         // if (the situation is RandomForest, and) we need to select random subset of features
         if (this.useRandomSubsetFeature) {
@@ -115,11 +117,12 @@ class ClassificationTree extends TreeBuilder {
             case (label, sequenceOfFIndices) => {
               generateRandomSet(sequenceOfFIndices).map(x => (label, x))
             }
-          }.collect.toSet
+            }.collect.toSet
 
-          distributionOfEachFeature = distributionOfEachFeature.filter(x => randomSelectedFeatureAtEachNode.contains(x._1))
-        }
+            distributionOfEachFeature = distributionOfEachFeature.filter(x => randomSelectedFeatureAtEachNode.contains(x._1))
+          }
 
+        // TODO: cache splitPoint_And_YValueDistribution_OfEachNode
         var splitPoint_And_YValueDistribution_OfEachNode = distributionOfEachFeature.map {
           case ((label, index), seq_xValue_yValue_fre) => {
             fullFeatureSet.data(index).Type match {
@@ -132,11 +135,11 @@ class ClassificationTree extends TreeBuilder {
             }
 
           }
-        }.groupByKey.map {
-          case (label, seq_fIndex_splitPoint) => {
-            (label, seq_fIndex_splitPoint.minBy(x => x._2._1.weight)._2)
+          }.groupByKey.map {
+            case (label, seq_fIndex_splitPoint) => {
+              (label, seq_fIndex_splitPoint.minBy(x => x._2._1.weight)._2)
+            }
           }
-        }
 
         /*
         var splitPoint_And_YValueDistribution_OfEachNode = frequencyOfEachPair.map {
@@ -157,19 +160,19 @@ class ClassificationTree extends TreeBuilder {
 
         val stopNodes = splitPoint_And_YValueDistribution_OfEachNode.filter {
           case (label, (splitPoint, yValueDistribution)) => (splitPoint.index == -1)
-        }.collect.map {
-          case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
-        }.toArray
+          }.collect.map {
+            case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
+            }.toArray
 
 
 
-        val non_stopNodes = splitPoint_And_YValueDistribution_OfEachNode.filter {
-          case (label, (splitPoint, yValueDistribution)) => (splitPoint.index != -1)
-        }.collect.map {
-          case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
-        }.toArray
+            val non_stopNodes = splitPoint_And_YValueDistribution_OfEachNode.filter {
+              case (label, (splitPoint, yValueDistribution)) => (splitPoint.index != -1)
+              }.collect.map {
+                case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
+                }.toArray
 
-        expandingNodeIndexes = non_stopNodes.map(x => x._1).toSet
+                expandingNodeIndexes = non_stopNodes.map(x => x._1).toSet
 
         // generate leaf-nodes
         updateModel(stopNodes, true)
@@ -185,6 +188,8 @@ class ClassificationTree extends TreeBuilder {
           }
         }
 
+        // TODO: unpersist splitPoint_And_YValueDistribution_OfEachNode
+
         //println("MAP:" + splitPointOfEachNode.mkString(","))
 
         transformedData = updateLabels(transformedData, splitPointOfEachNode.clone)
@@ -197,29 +202,28 @@ class ClassificationTree extends TreeBuilder {
 
         //println("current Tree:\n" + this.treeModel)
 
-      } catch {
-        case e: Exception => {
-          isError = true;
-          errorStack = e.getStackTraceString
-          expandingNodeIndexes = Set[BigInt]()
+        } catch {
+          case e: Exception => {
+            isError = true
+            errorStack = e.getStackTraceString
+            expandingNodeIndexes = Set[BigInt]()
+          }
         }
-      }
-    } while (!finish)
+        } while (!finish)
 
-    treeModel.isComplete = !isError;
+        treeModel.isComplete = !isError
 
-    /* FINALIZE THE ALGORITHM */
-    if (!isError) {
-      this.treeModel.isComplete = true
-      println("\n------------------DONE WITHOUT ERROR------------------\n")
-    } else {
-      this.treeModel.isComplete = false
-      println("\n--------FINISH with some failed jobs at iteration " + iter + " ----------\n")
-      println("Error Message: \n%s\n".format(errorStack))
-      println("Temporaty Tree model is stored at " + this.temporaryModelFile + "\n")
-    }
-
-  }
+        /* FINALIZE THE ALGORITHM */
+        if (!isError) {
+          this.treeModel.isComplete = true
+          println("\n------------------DONE WITHOUT ERROR------------------\n")
+          } else {
+            this.treeModel.isComplete = false
+            println("\n--------FINISH with some failed jobs at iteration " + iter + " ----------\n")
+            println("Error Message: \n%s\n".format(errorStack))
+            println("Temporaty Tree model is stored at " + this.temporaryModelFile + "\n")
+          }
+        }
 
 
   /** ***************************************************************/
@@ -235,7 +239,7 @@ class ClassificationTree extends TreeBuilder {
    * @param fTypes		type of each feature in each line (in ordered)
    * @return an array of FeatureAggregateInfo, each element is a value of each feature on this line
    */
-  private def convertArrayValuesToObjects(arrayValues: Array[String]): Array[FeatureValueAggregate] = {
+   private def convertArrayValuesToObjects(arrayValues: Array[String]): Array[FeatureValueAggregate] = {
     var yValue = arrayValues(yIndex) //.toDouble
     var i = -1
     //Utility.parseDouble(arrayValues(yIndex)) match {
@@ -248,14 +252,14 @@ class ClassificationTree extends TreeBuilder {
           var f = encapsulateValueIntoObject(-i - 1, "0", 0, FeatureType.Numerical)
           f.frequency = -1
           f
-        } else
+          } else
           fullFeatureSet.data(i).Type match {
             case FeatureType.Categorical => encapsulateValueIntoObject(i, element, yValue, FeatureType.Categorical)
             case FeatureType.Numerical => encapsulateValueIntoObject(i, element, yValue, FeatureType.Numerical)
           }
+        }
       }
     }
-  }
 
   /**
    * Encapsulate a feature value into object
@@ -265,7 +269,7 @@ class ClassificationTree extends TreeBuilder {
    * @param	featureType	type of the feature (Numerical or Categorical)
    * @output	an aggregated value of feature
    */
-  def encapsulateValueIntoObject(index: Int, value: String, yValue: Any, featureType: FeatureType.Value): FeatureValueAggregate = {
+   def encapsulateValueIntoObject(index: Int, value: String, yValue: Any, featureType: FeatureType.Value): FeatureValueAggregate = {
     featureType match {
       case FeatureType.Categorical => new FeatureValueAggregate(index, value, yValue, 1)
       //new FeatureValueLabelAggregate(index, value, yValue, yValue * yValue, 1)
@@ -282,8 +286,8 @@ class ClassificationTree extends TreeBuilder {
   : (SplitPoint, StatisticalInformation) = {
     var newSeqXValue_YValue_Frequency = seqXValue_YValue_Frequency.toList.sortBy(x => x._1.asInstanceOf[Double]) // sort by xValue
     var mapYValueToFrequency = (seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
-        .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
-        )
+      .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
+      )
     val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => (x._1 -> x._2)).toMap
     val numberOfYValue = mapYValueToIndex.size
     var totalFrequencyOfEachYValue = Array.fill(numberOfYValue)(0)
@@ -334,17 +338,17 @@ class ClassificationTree extends TreeBuilder {
           sumFrequencyLeft = sumFrequencyLeft + x._2
           sumFrequencyRight = sumFrequencyRight - x._2
         }
-      )
+        )
       //println("frequencyLeft:" + frequencyOfYValueInLeftNode.mkString(",") + " sumLeft:" + sumFrequencyLeft)
       //println("frequencyRight:" + totalFrequencyOfEachYValue.mkString(",") + " sumRight:" + sumFrequencyRight)
 
       var g: Double = 0
       for (j <- 0 until numberOfYValue) {
         if (frequencyOfYValueInLeftNode(j) != 0 && sumFrequencyLeft != 0)
-          g = g + frequencyOfYValueInLeftNode(j) * math.log(frequencyOfYValueInLeftNode(j) * 1.0 / sumFrequencyLeft)
+        g = g + frequencyOfYValueInLeftNode(j) * math.log(frequencyOfYValueInLeftNode(j) * 1.0 / sumFrequencyLeft)
 
         if (totalFrequencyOfEachYValue(j) != 0 && sumFrequencyRight != 0)
-          g = g + totalFrequencyOfEachYValue(j) * math.log(totalFrequencyOfEachYValue(j) * 1.0 / sumFrequencyRight)
+        g = g + totalFrequencyOfEachYValue(j) * math.log(totalFrequencyOfEachYValue(j) * 1.0 / sumFrequencyRight)
       }
 
       //println("consider splitpoint:" + splitPointCandidate + " gain:" + g + " maxGain:" + maxGain + " slitpoint:" + splitPoint)
@@ -363,8 +367,8 @@ class ClassificationTree extends TreeBuilder {
   : (SplitPoint, StatisticalInformation) = {
     var newSeqXValue_YValue_Frequency = seqXValue_YValue_Frequency //.sortBy(x => x._1.asInstanceOf[Double])// sort by xValue
     var mapYValueToFrequency = (seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
-        .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
-        )
+      .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
+      )
     val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => (x._1 -> x._2)).toMap
     val numberOfYValue = mapYValueToIndex.size
     var totalFrequencyOfEachYValue = Array.fill(numberOfYValue)(0)
@@ -386,7 +390,7 @@ class ClassificationTree extends TreeBuilder {
         var temp = Array.fill(numberOfYValue)(0)
         seqYValueFrequency.foreach(x => {
           temp.update(mapYValueToIndex.getOrElse(x._1, -1), x._2)
-        })
+          })
         (xValue, temp)
       }
     }
@@ -410,7 +414,7 @@ class ClassificationTree extends TreeBuilder {
 
     def generatePossibleSplitpoint(values: List[(Any, Array[Int])]) = {
       def generateIter(currentIndex: Int, currentSet: Set[Any],
-                       currentFrequenciesLeft: Array[Int]): Unit = {
+       currentFrequenciesLeft: Array[Int]): Unit = {
 
         for (i <- currentIndex until values.length) {
           val newSet = currentSet.+(values(i)._1) // add XValue into splitpoint
@@ -434,7 +438,7 @@ class ClassificationTree extends TreeBuilder {
             //println("FrequencyRight:" + frequenciesInRight.mkString(","))
             //println("sumLeft=" + sumLeft + " sumRight:" + sumRight)
             if (sumFrequencyLeft > 0)
-              giniLeft = giniLeft + (frequenciesInLeft(j) / sumFrequencyLeft) * (frequenciesInLeft(j) / sumFrequencyLeft)
+            giniLeft = giniLeft + (frequenciesInLeft(j) / sumFrequencyLeft) * (frequenciesInLeft(j) / sumFrequencyLeft)
             if (sumFrequencyRight > 0) {
               //println("freinRight" +frequenciesInRight(j) + " sumRight" + sumRight )
               giniRight = giniRight + (frequenciesInRight(j) / sumFrequencyRight) * (frequenciesInRight(j) / sumFrequencyRight)
@@ -737,7 +741,7 @@ class ClassificationTree extends TreeBuilder {
   }
   */
   private def updateLabels(data: RDD[Array[FeatureValueAggregate]],
-                           map_label_to_splitpoint: HashMap[BigInt, SplitPoint])
+   map_label_to_splitpoint: HashMap[BigInt, SplitPoint])
   = {
     data.map(array => {
 
@@ -750,32 +754,32 @@ class ClassificationTree extends TreeBuilder {
         //println("split point index:" + splitPoint.index)
         array.foreach(element => {
           element.label = -9
-        })
-      } else {
+          })
+        } else {
         // this is expanding node => change label of its data
         splitPoint.point match {
           // split on numerical feature
           case d: Double => {
             if (array(splitPoint.index).xValue.asInstanceOf[Double] < splitPoint.point.asInstanceOf[Double]) {
               array.foreach(element => element.label = (element.label << 1))
-            } else {
-              array.foreach(element => element.label = (element.label << 1) + 1)
+              } else {
+                array.foreach(element => element.label = (element.label << 1) + 1)
+              }
             }
-          }
 
           // split on categorical feature
           case s: Set[_] => {
             if (splitPoint.point.asInstanceOf[Set[String]].contains(array(splitPoint.index).xValue.asInstanceOf[String])) {
               array.foreach(element => element.label = (element.label << 1))
-            } else {
-              array.foreach(element => element.label = (element.label << 1) + 1)
+              } else {
+                array.foreach(element => element.label = (element.label << 1) + 1)
+              }
             }
           }
         }
-      }
-      array
-    })
-  }
+        array
+        })
+}
 
   /**
    * Recover, repair and continue build tree from the last state
@@ -828,9 +832,9 @@ class ClassificationTree extends TreeBuilder {
 
   private def markDataByLabel(data: RDD[Array[FeatureValueAggregate]], regions: List[(BigInt, List[Condition])]): RDD[Array[FeatureValueAggregate]] = {
     var newdata =
-      if (regions.length > 0) {
-        data.map(line => {
-          var labeled = false
+    if (regions.length > 0) {
+      data.map(line => {
+        var labeled = false
 
           // if a line can match one of the Conditions of a region, label it by the ID of this region
           regions.foreach(region => {
@@ -838,30 +842,30 @@ class ClassificationTree extends TreeBuilder {
               line.foreach(element => element.label = region._1)
               labeled = true
             }
-          })
+            })
 
           // if this line wasn't marked, it means this line isn't used for building tree
           if (!labeled) line.foreach(element => element.index = -9)
           line
-        })
+          })
       } else data
 
-    newdata
-  }
+      newdata
+    }
 
-  override def createNewInstance: TreeBuilder = {
-    new ClassificationTree()
-  }
+    override def createNewInstance: TreeBuilder = {
+      new ClassificationTree()
+    }
 
-  override protected def getPredictedValue(info: StatisticalInformation): Any = {
-    val yValueDistributed = info.YValue.asInstanceOf[Array[(Any, Int)]]
-    yValueDistributed.head._1
-  }
+    override protected def getPredictedValue(info: StatisticalInformation): Any = {
+      val yValueDistributed = info.YValue.asInstanceOf[Array[(Any, Int)]]
+      yValueDistributed.head._1
+    }
 
   /**
    * Init the last labels from the leaf nodes
    */
-  private def initTheLastLabelsFromLeafNodes() = {
+   private def initTheLastLabelsFromLeafNodes() = {
 
     var jobIDList = List[(BigInt, List[Condition])]()
 
@@ -875,11 +879,11 @@ class ClassificationTree extends TreeBuilder {
       if (!currentNode.isLeaf) {
         // it has 2 children
         var newConditionsLeft = conditions :+
-          new Condition(new SplitPoint(currentNode.feature.index, currentNode.splitpoint, 0), true)
+        new Condition(new SplitPoint(currentNode.feature.index, currentNode.splitpoint, 0), true)
         generateJobIter(currentNode.left, id * 2, newConditionsLeft)
 
         var newConditionsRight = conditions :+
-          new Condition(new SplitPoint(currentNode.feature.index, currentNode.splitpoint, 0), false)
+        new Condition(new SplitPoint(currentNode.feature.index, currentNode.splitpoint, 0), false)
         generateJobIter(currentNode.right, id * 2 + 1, newConditionsRight)
       }
     }
@@ -896,12 +900,12 @@ class ClassificationTree extends TreeBuilder {
   }
 
   class FeatureValueAggregate(
-                               var index: Int = -1,
-                               var xValue: Any,
-                               var yValue: Any,
-                               var frequency: Int = 0,
-                               var label: BigInt = 1
-                               ) extends Serializable {
+   var index: Int = -1,
+   var xValue: Any,
+   var yValue: Any,
+   var frequency: Int = 0,
+   var label: BigInt = 1
+   ) extends Serializable {
     override def toString = {
       "(index: %d xValue:%s yValue:%s frequency:%d label:%d)".format(index, xValue, yValue, frequency, label)
     }
