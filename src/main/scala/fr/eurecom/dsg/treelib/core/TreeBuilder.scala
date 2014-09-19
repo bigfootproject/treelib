@@ -96,7 +96,7 @@ abstract class TreeBuilder extends Serializable {
     /**
      * Cache the dataset
      */
-    var useCache = true
+    var useCache = false
 
     /*****************************************************************/
     /*    REGION OF PARAMETERS   */
@@ -339,7 +339,7 @@ abstract class TreeBuilder extends Serializable {
             throw new Exception("ERROR:Dataset is invalid or invalid feature names")
         }
 
-      try
+      try {
 
         treeModel.tree = null
         // These information will be used in Pruning phase
@@ -349,7 +349,7 @@ abstract class TreeBuilder extends Serializable {
         var (xIndexes, yIndex) = this.getXIndexesAndYIndexByNames(xFeatures, yFeature)
         println("current yIndex=" + yIndex + " xIndex:" + xIndexes.toString)
 
-        // SET UP LIST OF USEFUL FEATURES AND ITS INDEXES //
+        // SET UP LIST OF USEFUL FEATURES AND THEIR INDEXES //
         var usefulFeatureList = List[Feature]()
         var i = -1
         var usefulIndexes = List[Int]()
@@ -365,32 +365,6 @@ abstract class TreeBuilder extends Serializable {
             usefulFeatureList = usefulFeatureList.:+(Feature(feature.Name, feature.Type, i))
           }
         })
-
-        //this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
-        /*
-        // FILTER OUT THE UNUSED FEATURES //
-        this.trainingData = filterUnusedFeatures(this.trainingData, xIndexes, yIndex)
-
-        // because we remove unused features, so the indices are changed
-        var newXIndexes = usefulIndexes.filter(x => x != newYIndex)
-
-        this.usefulFeatureSet = new FeatureSet(usefulFeatureList)
-
-        this.yIndex = newYIndex
-        this.xIndexes = newXIndexes.toSet
-
-        treeModel.yIndex = newYIndex
-        treeModel.xIndexes = this.xIndexes
-        treeModel.usefulFeatureSet = this.usefulFeatureSet
-        treeModel.fullFeatureSet = this.fullFeatureSet
-        println("build tree with feature set:" + this.usefulFeatureSet + "\n xIndexes:" + this.xIndexes + "\nYIndex:" + this.yIndex)
-        treeModel.treeBuilder = this
-        // build tree
-        if (this.useCache)
-            this.startBuildTree(this.trainingData.cache, newXIndexes.toSet, newYIndex)
-        else
-            this.startBuildTree(this.trainingData, newXIndexes.toSet, newYIndex)
-        */
 
         this.yIndex = yIndex
         this.xIndexes = xIndexes
@@ -412,14 +386,14 @@ abstract class TreeBuilder extends Serializable {
           this.startBuildTree(this.trainingData.cache, xIndexes, yIndex)
         else
           this.startBuildTree(this.trainingData, xIndexes, yIndex)
-
+      }
       catch {
         case e: Throwable => {
           println("Error:" + e.getStackTraceString)
         }
       }
-        this.trainingData.unpersist(true)
-        this.treeModel
+      this.trainingData.unpersist(true)
+      this.treeModel
     }
 
     /**
