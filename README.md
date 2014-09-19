@@ -9,11 +9,4 @@ Decision trees:
 - Pruning follows the methodology ...
 - Random forests are implemented using ...
 
-Additional details are available here (to be updated):
-
-1. [Overview about decision tree](https://github.com/bigfootproject/spark-dectree/wiki/Overview-of-Regression-Tree)
-
-2. [Regression Tree with CART algorithm](https://github.com/bigfootproject/spark-dectree/wiki/Regression-Tree-with-CART-algorithms)
-
-3. [How to use Regression Tree in this repository](https://github.com/bigfootproject/spark-dectree/wiki/How-to-use-our-library)
-
+Have a look at our [WIKI](https://github.com/bigfootproject/treelib/wiki) to learn more about Treelib!
