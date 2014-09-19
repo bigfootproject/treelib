@@ -2,6 +2,7 @@ package fr.eurecom.dsg.treelib.cart
 
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd._
+import scala.collection.mutable
 import scala.collection.mutable.HashMap
 import java.io._
 import scala.util.Random
@@ -60,7 +61,8 @@ class ClassificationTree extends TreeBuilder {
 
     //println("featureset" + usefulFeatureSet.data.mkString("\n"))
 
-    do {
+    while (iter == 0 || !finish()) {
+//    do {
       iter = iter + 1
 
       try {
@@ -71,65 +73,60 @@ class ClassificationTree extends TreeBuilder {
         this.treeModel.writeToFile(this.temporaryModelFile)
 
         // TODO: Check all these var, they should be val
-        val data = transformedData.flatMap(x => x.toSeq).filter(x => (x.index >= 0 && x.label > 0))
+        val data = transformedData.flatMap(x => x.toSeq).filter(x => x.index >= 0 && x.label > 0)
 
         // COMPUTE FREQUENCIES
         val featureValueAggregate = data.map(x => {
-          ((x.label, x.index, x.xValue, x.yValue), (x.frequency))
+          ((x.label, x.index, x.xValue, x.yValue), x.frequency)
         }).reduceByKey(_ + _)
 
         val YValueFrequenciesOfEachXValue = featureValueAggregate.map {
           case ((label, index, xValue, yValue), (frequency)) => ((label, index, xValue), (yValue, frequency))
-        }.groupByKey
+        }.groupByKey()
 
         // COMPUTE AGGREGATE DISTRIBUTION BASED ON TARGET FEATURE
         var distributionOfEachFeature = YValueFrequenciesOfEachXValue.map {
           case ((label, index, xValue), seqYValueFrequency) => ((label, index), (xValue, seqYValueFrequency))
-        }.groupByKey
+        }.groupByKey()
 
         // THIS PART IS FOR BUILDING RANDOM FORESTS
         // if (we are building a RandomForest, and) we need to select random subset of features
         if (this.useRandomSubsetFeature) {
-          val temp = distributionOfEachFeature.map(x => x._1).groupByKey
+          val temp = distributionOfEachFeature.map(x => x._1).groupByKey()
           val randomSelectedFeatureAtEachNode = temp.flatMap {
-            case (label, sequenceOfFIndices) => {
+            case (label, sequenceOfFIndices) =>
               generateRandomSet(sequenceOfFIndices).map(x => (label, x))
-            }
-          }.collect.toSet
+          }.collect().toSet
           distributionOfEachFeature = distributionOfEachFeature.filter(x => randomSelectedFeatureAtEachNode.contains(x._1))
         }
 
         // COMPUTES THE BEST SPLIT POINT FOR EACH PREDICTOR, THEN SELECT THE BEST FEATURE/SPLIT FOR A NODE
         // TODO: cache splitPoint_And_YValueDistribution_OfEachNode
         val splitPoint_And_YValueDistribution_OfEachNode = distributionOfEachFeature.map {
-          case ((label, index), seq_xValue_yValue_fre) => {
+          case ((label, index), seq_xValue_yValue_fre) =>
             fullFeatureSet.data(index).Type match {
-              case FeatureType.Numerical => {
+              case FeatureType.Numerical =>
                 (label, (index, findBestSplitPointNumericalFeature(label, index, seq_xValue_yValue_fre)))
-              }
-              case FeatureType.Categorical => {
+              case FeatureType.Categorical =>
                 (label, (index, findBestSplitPointCategoricalFeature(label, index, seq_xValue_yValue_fre)))
-              }
             }
-          }
-        }.groupByKey.map {
-          case (label, seq_fIndex_splitPoint) => {
+        }.groupByKey().map {
+          case (label, seq_fIndex_splitPoint) =>
             (label, seq_fIndex_splitPoint.minBy(x => x._2._1.weight)._2)
-          }
         }.cache()
         //println("Debug splitpoint of each node:")
         //splitPoint_And_YValueDistribution_OfEachNode.collect.foreach(println)
 
         // DISCERN LEAF FROM INTERNAL NODES OF THE TREE MODEL
         val stopNodes = splitPoint_And_YValueDistribution_OfEachNode.filter {
-          case (label, (splitPoint, yValueDistribution)) => (splitPoint.index == -1)
-        }.collect.map {
+          case (label, (splitPoint, yValueDistribution)) => splitPoint.index == -1
+        }.collect().map {
           case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
         }.toArray
 
         val non_stopNodes = splitPoint_And_YValueDistribution_OfEachNode.filter {
-          case (label, (splitPoint, yValueDistribution)) => (splitPoint.index != -1)
-        }.collect.map {
+          case (label, (splitPoint, yValueDistribution)) => splitPoint.index != -1
+        }.collect().map {
           case (label, (splitPoint, yValueDistribution)) => (label, splitPoint, yValueDistribution)
         }.toArray
 
@@ -141,26 +138,25 @@ class ClassificationTree extends TreeBuilder {
         updateModel(non_stopNodes, false)
 
         // UPDATE THE BEST PREDICTOR/SPLIT POINT FOR EACH NODE OF THE TREE MODEL
-        var splitPointOfEachNode = HashMap[BigInt, SplitPoint]()
-        splitPoint_And_YValueDistribution_OfEachNode.map(x => (x._1, x._2._1)).collect.foreach {
-          case (key, value) => {
+        val splitPointOfEachNode = mutable.HashMap[BigInt, SplitPoint]()
+        splitPoint_And_YValueDistribution_OfEachNode.map(x => (x._1, x._2._1)).collect().foreach {
+          case (key, value) =>
             splitPointOfEachNode.update(key, value)
-          }
         }
 
         // TODO: unpersist splitPoint_And_YValueDistribution_OfEachNode
         splitPoint_And_YValueDistribution_OfEachNode.unpersist()
         //println("MAP:" + splitPointOfEachNode.mkString(","))
 
-        transformedData = updateLabels(transformedData, splitPointOfEachNode.clone)
+        transformedData = updateLabels(transformedData, splitPointOfEachNode.clone())
       } catch {
-        case e: Exception => {
+        case e: Exception =>
           isError = true
           errorStack = e.getStackTraceString
           expandingNodeIndexes = Set[BigInt]()
-        }
       }
-    } while (!finish)
+      //    } while (!finish())
+    }
 
     treeModel.isComplete = !isError
     /* FINALIZE THE ALGORITHM */
@@ -184,13 +180,10 @@ class ClassificationTree extends TreeBuilder {
    * Process a line of data set
    * For each value of each feature, encapsulate it into a FeatureAgregateInfo(fetureIndex, xValue, yValue, frequency)
    *
-   * @param line array of value of each feature in a "record"
-   * @param numbeFeatures	the TOTAL number of feature in data set (include features which may be not processed)
-   * @param fTypes type of each feature in each line (in ordered)
-   * @return an array of FeatureAggregateInfo, each element is a value of each feature on this line
+   * @param arrayValues array of value of each feature in a "record"
    */
    private def convertArrayValuesToObjects(arrayValues: Array[String]): Array[FeatureValueAggregate] = {
-    var yValue = arrayValues(yIndex) //.toDouble
+    val yValue = arrayValues(yIndex) //.toDouble
     var i = -1
     //Utility.parseDouble(arrayValues(yIndex)) match {
     //    case Some(yValue) => { // check type of Y : if isn't continuous type, return nothing
@@ -212,12 +205,11 @@ class ClassificationTree extends TreeBuilder {
     }
 
   /**
-   * Encapsulate a feature value into object
+   * Encapsulate a feature value into object and outputs an aggregated value of feature
    * @param	index		the feature index
    * @param	value		the feature value
    * @param	yValue		the associate value of the target feature
    * @param	featureType	type of the feature (Numerical or Categorical)
-   * @output	an aggregated value of feature
    */
    def encapsulateValueIntoObject(index: Int, value: String, yValue: Any, featureType: FeatureType.Value): FeatureValueAggregate = {
     featureType match {
@@ -234,11 +226,11 @@ class ClassificationTree extends TreeBuilder {
   /** *******************************************************************/
   private def findBestSplitPointNumericalFeature(label: BigInt, index: Int, seqXValue_YValue_Frequency: Iterable[(Any, Iterable[(Any, Int)])])
   : (SplitPoint, StatisticalInformation) = {
-    var newSeqXValue_YValue_Frequency = seqXValue_YValue_Frequency.toList.sortBy(x => x._1.asInstanceOf[Double]) // sort by xValue
-    var mapYValueToFrequency = (seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
-      .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
-      )
-    val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => (x._1 -> x._2)).toMap
+    val newSeqXValue_YValue_Frequency = seqXValue_YValue_Frequency.toList.sortBy(x => x._1.asInstanceOf[Double]) // sort by xValue
+    val mapYValueToFrequency = seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
+        .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
+
+    val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => x._1 -> x._2).toMap
     val numberOfYValue = mapYValueToIndex.size
     var totalFrequencyOfEachYValue = Array.fill(numberOfYValue)(0)
     var frequencyOfYValueInLeftNode = Array.fill(numberOfYValue)(0)
@@ -316,10 +308,9 @@ class ClassificationTree extends TreeBuilder {
   private def findBestSplitPointCategoricalFeature(label: BigInt, index: Int, seqXValue_YValue_Frequency: Iterable[(Any, Iterable[(Any, Int)])])
   : (SplitPoint, StatisticalInformation) = {
     var newSeqXValue_YValue_Frequency = seqXValue_YValue_Frequency //.sortBy(x => x._1.asInstanceOf[Double])// sort by xValue
-    var mapYValueToFrequency = (seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
+    val mapYValueToFrequency = seqXValue_YValue_Frequency.flatMap(x => x._2).groupBy(_._1)
       .map { case (group, traversable) => traversable.reduce { (a, b) => (a._1, a._2 + b._2)}}
-      )
-    val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => (x._1 -> x._2)).toMap
+    val mapYValueToIndex = mapYValueToFrequency.keys.zipWithIndex.map(x => x._1 -> x._2).toMap
     val numberOfYValue = mapYValueToIndex.size
     var totalFrequencyOfEachYValue = Array.fill(numberOfYValue)(0)
     //var frequencyOfYValueInLeftNode = Array.fill(numberOfYValue)(0)
@@ -336,13 +327,12 @@ class ClassificationTree extends TreeBuilder {
     }
 
     val xValueAndArrayOfYFrequency = newSeqXValue_YValue_Frequency.map {
-      case (xValue, seqYValueFrequency) => {
-        var temp = Array.fill(numberOfYValue)(0)
+      case (xValue, seqYValueFrequency) =>
+        val temp = Array.fill(numberOfYValue)(0)
         seqYValueFrequency.foreach(x => {
           temp.update(mapYValueToIndex.getOrElse(x._1, -1), x._2)
           })
         (xValue, temp)
-      }
     }
 
     val statisticalInfo = mapYValueToFrequency.toArray.sortBy(x => -x._2).take(3)
@@ -369,7 +359,7 @@ class ClassificationTree extends TreeBuilder {
         for (i <- currentIndex until values.length) {
           val newSet = currentSet.+(values(i)._1) // add XValue into splitpoint
           var frequenciesInLeft = values(i)._2
-          var frequenciesInRight = totalFrequencyOfEachYValue.clone
+          var frequenciesInRight = totalFrequencyOfEachYValue.clone()
           var fre: Int = 0
           for (j <- 0 until numberOfYValue) {
             fre = fre + frequenciesInLeft(j)
@@ -419,7 +409,7 @@ class ClassificationTree extends TreeBuilder {
   }
 
   private def updateLabels(data: RDD[Array[FeatureValueAggregate]],
-   map_label_to_splitpoint: HashMap[BigInt, SplitPoint]): RDD[Array[FeatureValueAggregate]]
+   map_label_to_splitpoint: mutable.HashMap[BigInt, SplitPoint]): RDD[Array[FeatureValueAggregate]]
   = {
     data.map(array => {
 
@@ -437,22 +427,19 @@ class ClassificationTree extends TreeBuilder {
         // this is expanding node => change label of its data
         splitPoint.point match {
           // split on numerical feature
-          case d: Double => {
+          case d: Double =>
             if (array(splitPoint.index).xValue.asInstanceOf[Double] < splitPoint.point.asInstanceOf[Double]) {
-              array.foreach(element => element.label = (element.label << 1))
+              array.foreach(element => element.label = element.label << 1)
               } else {
                 array.foreach(element => element.label = (element.label << 1) + 1)
               }
-            }
-
           // split on categorical feature
-          case s: Set[_] => {
+          case s: Set[_] =>
             if (splitPoint.point.asInstanceOf[Set[String]].contains(array(splitPoint.index).xValue.asInstanceOf[String])) {
-              array.foreach(element => element.label = (element.label << 1))
+              array.foreach(element => element.label = element.label << 1)
               } else {
                 array.foreach(element => element.label = (element.label << 1) + 1)
               }
-            }
           }
         }
         array
@@ -502,11 +489,11 @@ class ClassificationTree extends TreeBuilder {
       newdata
     }
 
-    override def createNewInstance: TreeBuilder = {
-      new ClassificationTree()
-    }
+  override def createNewInstance(): TreeBuilder = {
+    new ClassificationTree()
+  }
 
-    override protected def getPredictedValue(info: StatisticalInformation): Any = {
+  override protected def getPredictedValue(info: StatisticalInformation): Any = {
       val yValueDistributed = info.YValue.asInstanceOf[Array[(Any, Int)]]
       yValueDistributed.head._1
     }
@@ -514,7 +501,7 @@ class ClassificationTree extends TreeBuilder {
   /**
    * Init the last labels from the leaf nodes
    */
-   private def initTheLastLabelsFromLeafNodes() = {
+  private def initTheLastLabelsFromLeafNodes() = {
 
     var jobIDList = List[(BigInt, List[Condition])]()
 
@@ -549,12 +536,12 @@ class ClassificationTree extends TreeBuilder {
   }
 
   class FeatureValueAggregate(
-   var index: Int = -1,
-   var xValue: Any,
-   var yValue: Any,
-   var frequency: Int = 0,
-   var label: BigInt = 1
-   ) extends Serializable {
+    var index: Int = -1,
+    var xValue: Any,
+    var yValue: Any,
+    var frequency: Int = 0,
+    var label: BigInt = 1
+  ) extends Serializable {
     override def toString = {
       "(index: %d xValue:%s yValue:%s frequency:%d label:%d)".format(index, xValue, yValue, frequency, label)
     }
