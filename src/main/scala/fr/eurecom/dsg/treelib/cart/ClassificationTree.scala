@@ -65,7 +65,7 @@ class ClassificationTree extends TreeBuilder {
 //    do {
       iter = iter + 1
 
-      try {
+      try
         println("\n\n\nITERATION---------------------%d------------- expands from node %d\n\n".format(iter, expandingNodeIndexes.count(p => true)))
 
         // TODO: I would like this to be optional.
@@ -149,7 +149,7 @@ class ClassificationTree extends TreeBuilder {
         //println("MAP:" + splitPointOfEachNode.mkString(","))
 
         transformedData = updateLabels(transformedData, splitPointOfEachNode.clone())
-      } catch {
+      catch {
         case e: Exception =>
           isError = true
           errorStack = e.getStackTraceString
@@ -187,12 +187,13 @@ class ClassificationTree extends TreeBuilder {
     var i = -1
     //Utility.parseDouble(arrayValues(yIndex)) match {
     //    case Some(yValue) => { // check type of Y : if isn't continuous type, return nothing
+    // TODO: create a local copy and operate on it
     arrayValues.map {
       element => {
         i = (i + 1) % fullFeatureSet.numberOfFeature
         if (!this.xIndexes.contains(i)) {
           //println("---------------------- " + i)
-          var f = encapsulateValueIntoObject(-i - 1, "0", 0, FeatureType.Numerical)
+          val f = encapsulateValueIntoObject(-i - 1, "0", 0, FeatureType.Numerical)
           f.frequency = -1
           f
           } else
@@ -301,8 +302,6 @@ class ClassificationTree extends TreeBuilder {
     }
 
     (new SplitPoint(index, splitPoint, maxGain), new StatisticalInformation(statisticalInfo, 0, sumOfFrequency))
-
-    //.reduce((x,y) => (x._1, x._2 + y._2))
   }
 
   private def findBestSplitPointCategoricalFeature(label: BigInt, index: Int, seqXValue_YValue_Frequency: Iterable[(Any, Iterable[(Any, Int)])])
@@ -467,27 +466,26 @@ class ClassificationTree extends TreeBuilder {
   }
 
   private def markDataByLabel(data: RDD[Array[FeatureValueAggregate]], regions: List[(BigInt, List[Condition])]): RDD[Array[FeatureValueAggregate]] = {
-    var newdata =
+    val newdata =
     if (regions.length > 0) {
       data.map(line => {
         var labeled = false
 
-          // if a line can match one of the Conditions of a region, label it by the ID of this region
-          regions.foreach(region => {
-            if (region._2.forall(c => c.check(line(c.splitPoint.index).xValue))) {
-              line.foreach(element => element.label = region._1)
-              labeled = true
-            }
-            })
+        // if a line can match one of the Conditions of a region, label it by the ID of this region
+        regions.foreach(region => {
+          if (region._2.forall(c => c.check(line(c.splitPoint.index).xValue))) {
+            line.foreach(element => element.label = region._1)
+            labeled = true
+          }
+        })
 
-          // if this line wasn't marked, it means this line isn't used for building tree
-          if (!labeled) line.foreach(element => element.index = -9)
-          line
-          })
-      } else data
-
-      newdata
-    }
+        // if this line wasn't marked, it means this line isn't used for building tree
+        if (!labeled) line.foreach(element => element.index = -9)
+        line
+      })
+    } else data
+    newdata
+  }
 
   override def createNewInstance(): TreeBuilder = {
     new ClassificationTree()
