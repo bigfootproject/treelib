@@ -35,17 +35,14 @@ class ClassificationTree extends TreeBuilder {
     val mydata = trainingData.map(line => line.split(delimiter))
 
     /* REGION TRANSFORMING */
-
     // TODO: I really don't like this to be a var. FIX ME
     // encapsulate each value of each feature in each line into a object
+    // and filter the 'line' which contains the invalid or missing data
     var transformedData = mydata.map(
       arrayValues => {
         convertArrayValuesToObjects(arrayValues)
-        })
-
-    // filter the 'line' which contains the invalid or missing data
-    transformedData = transformedData.filter(x => x.length > 0)
-
+      })
+      .filter(x => x.length > 0)
     /* END OF REGION TRANSFORMING */
 
     // set label for the first job
